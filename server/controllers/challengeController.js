@@ -388,23 +388,11 @@ export const purchaseChallenge = async (req, res, next) => {
       cart.updatedAt = new Date();
       await cart.save();
     }
-
-    // Create transaction record
-    const transaction = new Transaction({
-      user: user._id,
-      challenge: challenge._id,
-      type: 'challenge',
-      tokens: -challenge.tokenCost, // Negative because tokens are being spent
-      details: `Purchased challenge: ${challenge.title}`
-    });
-    await transaction.save();
-
     res.status(200).json({
       success: true,
       data: {
         challenge,
         tokensRemaining: user.tokens,
-        transactionId: transaction._id
       }
     });
   } catch (err) {

@@ -8,7 +8,6 @@ import User from '../models/User.js'
 export const getUserTransactions = async (req, res, next) => {
   try {
     const transactions = await Transaction.find({ user: req.user.id })
-      .populate('challenge', 'title')
       .sort({ date: -1 });
 
     res.status(200).json({
@@ -28,7 +27,6 @@ export const getAllTransactions = async (req, res, next) => {
   try {
     const transactions = await Transaction.find()
       .populate('user', 'email')
-      .populate('challenge', 'title')
       .sort({ date: -1 });
 
     res.status(200).json({
@@ -47,7 +45,6 @@ export const getAllTransactions = async (req, res, next) => {
 export const getTransactionsByUserId = async (req, res, next) => {
   try {
     const transactions = await Transaction.find({ user: req.params.userId })
-      .populate('challenge', 'title')
       .sort({ date: -1 });
 
     if (!transactions) {
@@ -68,38 +65,38 @@ export const getTransactionsByUserId = async (req, res, next) => {
 // @desc    Create a new transaction
 // @route   POST /api/transactions
 // @access  Private
-export const createTransaction = async (req, res, next) => {
-  try {
-    const { type, tokens, details } = req.body;
-    const userId = req.user.id;
+// export const createTransaction = async (req, res, next) => {
+//   try {
+//     const { type, tokens, details } = req.body;
+//     const userId = req.user.id;
 
-    // Validate input
-    if (!type || !tokens) {
-      return next(new ErrorResponse('Type and tokens are required', 400));
-    }
+//     // Validate input
+//     if (!type || !tokens) {
+//       return next(new ErrorResponse('Type and tokens are required', 400));
+//     }
 
-    const transaction = new Transaction({
-      user: userId,
-      type,
-      tokens,
-      details,
-      date: new Date()
-    });
+//     const transaction = new Transaction({
+//       user: userId,
+//       type,
+//       tokens,
+//       details,
+//       date: new Date()
+//     });
 
-    await transaction.save();
+//     await transaction.save();
 
-    // Update user's token balance if this is a purchase
-    if (type === 'purchase') {
-      await User.findByIdAndUpdate(userId, {
-        $inc: { tokens: tokens }
-      });
-    }
+//     // Update user's token balance if this is a purchase
+//     if (type === 'purchase') {
+//       await User.findByIdAndUpdate(userId, {
+//         $inc: { tokens: tokens }
+//       });
+//     }
 
-    res.status(201).json({
-      success: true,
-      data: transaction
-    });
-  } catch (err) {
-    next(err);
-  }
-};
+//     res.status(201).json({
+//       success: true,
+//       data: transaction
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };

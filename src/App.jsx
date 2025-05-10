@@ -19,6 +19,8 @@ import { PrivateRoute } from './components/PrivateRoute';
 import { AdminRoute } from './components/AdminRoute';
 import { TokenManagement } from './pages/TokenManagement';
 import { AdminTransactions } from './pages/admin/AdminTransactions';
+import { PaymentSuccess } from './components/PaymentSuccess';
+import { PaymentCanceled } from './components/PaymentCanceled';
 
 function App() {
   return (
@@ -38,6 +40,8 @@ function App() {
           <Route path="/cart" element={<PrivateRoute><Cart /></PrivateRoute>} />
           <Route path="/profile" element={<PrivateRoute><UserProfile /></PrivateRoute>} />
           <Route path="/purchased" element={<PrivateRoute><PurchasedChallenges /></PrivateRoute>} />
+          <Route path="/payment-success" element={<PrivateRoute><PaymentSuccess /></PrivateRoute>} />
+          <Route path="/payment-canceled" element={<PrivateRoute><PaymentCanceled /></PrivateRoute>} />
           
           {/* Admin routes */}
           <Route path="/admin" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
