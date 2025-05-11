@@ -141,7 +141,7 @@ export const AdminTransactions = () => {
                     className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
                     onClick={() => handleSort('type')}
                   >
-                    Type {getSortIcon('type')}
+                    Amount {getSortIcon('type')}
                   </th>
                   <th 
                     scope="col" 
@@ -166,7 +166,7 @@ export const AdminTransactions = () => {
                         {transaction.user?.email || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">
-                        {transaction.type}
+                        {transaction.amount}
                       </td>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${
                         transaction.tokens > 0 ? 'text-green-600' : 'text-red-600'
