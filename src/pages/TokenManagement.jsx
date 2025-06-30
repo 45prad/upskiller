@@ -1,10 +1,15 @@
+
 import React, { useState, useEffect } from 'react';
 import { ArrowRight, Coins, History, ChevronRight } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '../contexts/AuthContext';
+import { loadStripe } from '@stripe/stripe-js';
+
+// Initialize Stripe
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
 export const TokenManagement = () => {
-   const { user, refreshUser } = useAuth();
+  const { user, refreshUser } = useAuth();
   const [tokenBalance, setTokenBalance] = useState(0);
   const [selectedPackage, setSelectedPackage] = useState(null);
   const [transactions, setTransactions] = useState([]);
@@ -12,24 +17,19 @@ export const TokenManagement = () => {
   
   // Token packages available for purchase
   const tokenPackages = [
-    { id: 1, tokens: 50, price: 4.99, bonus: 0 },
-    { id: 2, tokens: 100, price: 9.99, bonus: 10 },
-    { id: 3, tokens: 250, price: 19.99, bonus: 50 },
-    { id: 4, tokens: 500, price: 34.99, bonus: 100 },
-    { id: 5, tokens: 1000, price: 59.99, bonus: 250 },
+    { id: 1, tokens: 50, price: 4.99, bonus: 0, stripePriceId: 'price_1RN5bPDEBDGtWMY2K1nqFOLp' },
+    { id: 2, tokens: 100, price: 9.99, bonus: 10, stripePriceId: 'price_1RN5bQDEBDGtWMY2qEo5fBgW' },
+    { id: 3, tokens: 250, price: 19.99, bonus: 50, stripePriceId: 'price_1RN5bQDEBDGtWMY2SgcV7qO5' },
+    { id: 4, tokens: 500, price: 34.99, bonus: 100, stripePriceId: 'price_1RN5bRDEBDGtWMY24hy8WlBU' },
+    { id: 5, tokens: 1000, price: 59.99, bonus: 250, stripePriceId: 'price_1RN5bSDEBDGtWMY2TTaZqfMh' },
   ];
 
   useEffect(() => {
-    const fetchTransactions = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-
-        const userResponse = await axios.get(`${import.meta.env.VITE_API_URL}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        setTokenBalance(userResponse.data.data.tokens);
+        await refreshUser();
+        setTokenBalance(user?.tokens || 0);
 
         const response = await axios.get(`${import.meta.env.VITE_API_URL}/transactions/my`, {
           headers: {
@@ -38,48 +38,54 @@ export const TokenManagement = () => {
         });
         setTransactions(response.data.data);
       } catch (error) {
-        console.error('Error fetching transactions:', error);
+        console.error('Error fetching data:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchTransactions();
+    fetchData();
   }, []);
 
   const handlePurchase = async () => {
-    if (selectedPackage) {
-      try {
-        // In a real app, this would call your payment API
-        const newBalance = tokenBalance + selectedPackage.tokens + selectedPackage.bonus;
-        setTokenBalance(newBalance);
-        
-        // Create transaction record
-        await axios.post(`${import.meta.env.VITE_API_URL}/transactions`, {
-          type: 'purchase',
+    if (!selectedPackage) return;
+    
+    try {
+      setLoading(true);
+      
+      // Create a Stripe checkout session
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/payments/create-checkout-session`,
+        {
+          priceId: selectedPackage.stripePriceId,
+          packageId: selectedPackage.id,
           tokens: selectedPackage.tokens + selectedPackage.bonus,
-          details: `Purchased ${selectedPackage.tokens} tokens with ${selectedPackage.bonus} bonus`
-        }, {
+          amount: selectedPackage.price
+        },
+        {
           headers: {
             Authorization: `Bearer ${localStorage.getItem('token')}`
           }
-        });
-        refreshUser();
+        }
+      );
 
-        // Refresh transactions
-        const response = await axios.get(`${import.meta.env.VITE_API_URL}/transactions/my`, {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem('token')}`
-          }
-        });
-        setTransactions(response.data.data);
+      const sessionId = response.data.sessionId;
+      const stripe = await stripePromise;
+      
+      // Redirect to Stripe checkout
+      const { error } = await stripe.redirectToCheckout({
+        sessionId: sessionId
+      });
 
-        alert(`Successfully purchased ${selectedPackage.tokens} tokens!`);
-        setSelectedPackage(null);
-      } catch (error) {
-        console.error('Purchase failed:', error);
-        alert('Purchase failed. Please try again.');
+      if (error) {
+        console.error('Stripe redirect error:', error);
+        alert('Payment failed. Please try again.');
       }
+    } catch (error) {
+      console.error('Purchase failed:', error);
+      alert('Purchase failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -140,7 +146,7 @@ export const TokenManagement = () => {
                         </span>
                       )}
                     </div>
-                    <span className="text-lg font-bold">${pkg.price}</span>
+                    <span className="text-lg font-bold">${pkg.price.toFixed(2)}</span>
                   </div>
                   <div className="mt-2 text-sm text-gray-500">
                     ${(pkg.price / (pkg.tokens + pkg.bonus)).toFixed(2)} per token
@@ -151,15 +157,17 @@ export const TokenManagement = () => {
 
             {/* Purchase button */}
             <button
-              // onClick={handlePurchase}
-              disabled={!selectedPackage}
+              onClick={handlePurchase}
+              disabled={!selectedPackage || loading}
               className={`w-full py-3 px-6 rounded-lg font-medium text-white flex items-center justify-center ${
-                selectedPackage 
+                selectedPackage && !loading
                   ? 'bg-blue-600 hover:bg-blue-700 shadow-md' 
                   : 'bg-gray-400 cursor-not-allowed'
               }`}
             >
-              {selectedPackage ? (
+              {loading ? (
+                'Processing...'
+              ) : selectedPackage ? (
                 <>
                   Purchase {selectedPackage.tokens + selectedPackage.bonus} Tokens
                   <ArrowRight className="ml-2 h-5 w-5" />
@@ -196,6 +204,11 @@ export const TokenManagement = () => {
                       <div className="text-sm text-gray-500">{formatDate(tx.date)}</div>
                       {tx.details && (
                         <div className="text-sm text-gray-600 mt-1">{tx.details}</div>
+                      )}
+                      {tx.amount && (
+                        <div className="text-sm text-gray-600 mt-1">
+                          Amount: ${tx.amount.toFixed(2)}
+                        </div>
                       )}
                     </div>
                     <div className={`font-medium ${

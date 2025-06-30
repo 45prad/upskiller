@@ -4,7 +4,6 @@ import {
   getUserTransactions,
   getAllTransactions,
   getTransactionsByUserId,
-  createTransaction 
 } from '../controllers/transactionController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -13,7 +12,7 @@ const router = express.Router();
 // Protected routes (logged in users)
 router.use(protect);
 
-router.post('/', createTransaction); 
+// router.post('/', createTransaction); 
 
 // Get current user's transactions
 router.get('/my', getUserTransactions);
