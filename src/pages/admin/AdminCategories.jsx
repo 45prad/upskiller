@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Upload, Download } from 'lucide-react';
+import * as XLSX from 'xlsx'; // Add XLSX import
+
 
 export const AdminCategories = () => {
   const [categories, setCategories] = useState([]);
@@ -8,6 +10,8 @@ export const AdminCategories = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [currentCategory, setCurrentCategory] = useState(null);
+   const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -31,6 +35,84 @@ export const AdminCategories = () => {
       setLoading(false);
     }
   };
+
+   const handleFileUpload = async (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+    
+    setUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/categories/upload`, 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        let successMessage = `Successfully uploaded ${response.data.count} categories`;
+        
+        if (response.data.errors?.length > 0) {
+          const errorCount = response.data.errors.length;
+          successMessage += ` (with ${errorCount} error${errorCount !== 1 ? 's' : ''})`;
+          
+          const errorDetails = response.data.errors
+            .map((error, index) => `${index + 1}. ${error}`)
+            .join('\n');
+          
+          alert(`${successMessage}\n\nErrors:\n${errorDetails}`);
+        } else {
+          alert(successMessage);
+        }
+        
+        fetchCategories();
+      } else {
+        alert(response.data.error || 'Failed to upload categories');
+      }
+    } catch (err) {
+      let errorMessage = 'Error uploading categories';
+      
+      if (err.response) {
+        if (err.response.data?.errors) {
+          errorMessage += ':\n' + err.response.data.errors.join('\n');
+        } else if (err.response.data?.error) {
+          errorMessage += ': ' + err.response.data.error;
+        } else {
+          errorMessage += `: ${err.response.status} ${err.response.statusText}`;
+        }
+      } else if (err.request) {
+        errorMessage += ': No response from server';
+      } else {
+        errorMessage += `: ${err.message}`;
+      }
+      
+      alert(errorMessage);
+      console.error('Upload error details:', err);
+    } finally {
+      setUploading(false);
+      e.target.value = ''; // Reset file input
+    }
+  };
+    const downloadTemplate = () => {
+    const templateData = [
+      ['name', 'description', 'imageUrl', 'difficulty', 'hoursRequired'],
+      ['Web Development', 'Learn web technologies', '', 'Intermediate', 40],
+      ['Data Science', 'Master data analysis', '', 'Advanced', 60]
+    ];
+    
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "categories_template.xlsx");
+  };
+
 
   const handleOpenModal = (category = null) => {
     if (category) {
@@ -105,13 +187,33 @@ export const AdminCategories = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Manage Categories</h1>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="h-5 w-5 mr-1" />
-          Add Category
-        </button>
+        <div className="flex space-x-2">
+          <button 
+            onClick={downloadTemplate}
+            className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          >
+            <Download className="h-5 w-5 mr-1" />
+            Download Template
+          </button>
+          <label className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer">
+            <Upload className="h-5 w-5 mr-1" />
+            Upload Excel
+            <input 
+              type="file" 
+              className="hidden" 
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+          </label>
+          <button
+            onClick={() => handleOpenModal()}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-5 w-5 mr-1" />
+            Add Category
+          </button>
+        </div>
       </div>
 
       {/* Search */}

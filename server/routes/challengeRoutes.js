@@ -40,4 +40,13 @@ router.use(authorize('admin'));
 router.get('/users/:userId/purchased-challenges',getUserPurchasedChallenges);
 
 
+import { uploadChallenges } from '../controllers/challengeController.js';
+import multer from 'multer';
+
+// Use memory storage instead of disk storage
+const upload = multer({ storage: multer.memoryStorage() });
+
+router.post('/upload', upload.single('file'), uploadChallenges);
+
+
 export default router;

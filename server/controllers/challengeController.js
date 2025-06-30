@@ -2,7 +2,96 @@ import Challenge from '../models/Challenge.js';
 import Category from '../models/Category.js';
 import User from '../models/User.js';
 import Cart from '../models/Cart.js';
-import PurchasedChallenge from '../models/purchasedChallenge.js'; 
+import PurchasedChallenge from '../models/purchasedChallenge.js';
+import xlsx from 'xlsx';
+import fs from 'fs'; // Add this import at the top
+
+
+export const uploadChallenges = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    // Read the Excel file from buffer
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = xlsx.utils.sheet_to_json(worksheet);
+
+    // Validate required fields
+    const requiredFields = ['title', 'description', 'category', 'difficulty', 'tokenCost', 'content'];
+    if (data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Empty Excel file'
+      });
+    }
+
+    const missingFields = requiredFields.filter(field => !data[0].hasOwnProperty(field));
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+
+    // Process each row
+    let createdCount = 0;
+    const errors = [];
+    
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      try {
+        // Find or create category (case insensitive)
+        let category = await Category.findOne({ 
+          name: { $regex: new RegExp(`^${row.category}$`, 'i') } 
+        });
+        
+        if (!category) {
+          category = await Category.create({ name: row.category.trim() });
+        }
+
+        // Validate difficulty
+        const validDifficulties = ['Easy', 'Medium', 'Hard'];
+        const difficulty = validDifficulties.includes(row.difficulty) 
+          ? row.difficulty 
+          : 'Medium';
+
+        // Create challenge
+        await Challenge.create({
+          title: row.title,
+          description: row.description,
+          category: category._id,
+          difficulty: difficulty,
+          tokenCost: Number(row.tokenCost) || 0,
+          content: row.content
+        });
+
+        // Update category count if it's a new challenge
+        await Category.findByIdAndUpdate(category._id, {
+          $inc: { challengeCount: 1 }
+        });
+
+        createdCount++;
+      } catch (err) {
+        errors.push(`Row ${i + 2}: ${err.message}`);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      count: createdCount,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Successfully processed ${createdCount} challenges${errors.length > 0 ? ` (${errors.length} errors)` : ''}`
+    });
+  } catch (err) {
+    next(err);
+  }
+};
 
 // @desc    Create new challenge
 // @route   POST /api/challenges

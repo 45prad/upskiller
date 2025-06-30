@@ -1,4 +1,5 @@
 import Category from '../models/Category.js';
+import xlsx from 'xlsx';
 
 // @desc    Create new category
 // @route   POST /api/categories
@@ -114,6 +115,81 @@ export const deleteCategory = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {}
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+
+
+export const uploadCategories = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        error: 'No file uploaded'
+      });
+    }
+
+    // Read the Excel file from buffer
+    const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+    const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+    const data = xlsx.utils.sheet_to_json(worksheet);
+
+    // Validate required fields
+    const requiredFields = ['name', 'description', 'difficulty', 'hoursRequired'];
+    if (data.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Empty Excel file'
+      });
+    }
+
+    const missingFields = requiredFields.filter(field => !data[0].hasOwnProperty(field));
+    
+    if (missingFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing required fields: ${missingFields.join(', ')}`
+      });
+    }
+
+    // Process each row
+    let createdCount = 0;
+    const errors = [];
+    
+    for (let i = 0; i < data.length; i++) {
+      const row = data[i];
+      try {
+        // Validate difficulty
+        const validDifficulties = ['Beginner', 'Intermediate', 'Advanced'];
+        const difficulty = validDifficulties.includes(row.difficulty) 
+          ? row.difficulty 
+          : 'Intermediate';
+
+        // Create category
+        await Category.create({
+          name: row.name,
+          description: row.description,
+          imageUrl: row.imageUrl || '',
+          difficulty: difficulty,
+          hoursRequired: Number(row.hoursRequired) || 0
+        });
+
+        createdCount++;
+      } catch (err) {
+        errors.push(`Row ${i + 2}: ${err.message}`);
+      }
+    }
+
+    res.status(201).json({
+      success: true,
+      count: createdCount,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Successfully processed ${createdCount} categories${errors.length > 0 ? ` (${errors.length} errors)` : ''}`
     });
   } catch (err) {
     next(err);

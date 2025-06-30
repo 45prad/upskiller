@@ -8,6 +8,10 @@ import {
   getCategoriesCount
 } from '../controllers/categoryController.js';
 import { protect, authorize } from '../middleware/auth.js';
+import { uploadCategories } from '../controllers/categoryController.js';
+import multer from 'multer';
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 const router = express.Router();
 
@@ -23,5 +27,7 @@ router.use(protect, authorize('admin'));
 router.post('/', createCategory);
 router.put('/:id', updateCategory);
 router.delete('/:id', deleteCategory);
+// Add this route
+router.post('/upload', upload.single('file'), uploadCategories);
 
 export default router;

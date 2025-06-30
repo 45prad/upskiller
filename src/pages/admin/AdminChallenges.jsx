@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Search, Upload, Download  } from 'lucide-react';
+import * as XLSX from 'xlsx'; // Add XLSX import
 
 export const AdminChallenges = () => {
   const [challenges, setChallenges] = useState([]);
@@ -8,6 +9,8 @@ export const AdminChallenges = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showModal, setShowModal] = useState(false);
+  const [file, setFile] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [currentChallenge, setCurrentChallenge] = useState(null);
   const [formData, setFormData] = useState({
     title: '',
@@ -40,6 +43,53 @@ export const AdminChallenges = () => {
       setLoading(false);
     }
   };
+
+  // Add this function
+  const handleFileUpload = async (e) => {
+    const selectedFile = e.target.files[0];
+    if (!selectedFile) return;
+    
+    setUploading(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+      
+      const response = await axios.post(
+        `${import.meta.env.VITE_API_URL}/challenges/upload`, 
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      
+      if (response.data.success) {
+        alert(`Successfully uploaded ${response.data.count} challenges`);
+        fetchData();
+      }
+    } catch (err) {
+      console.error('Error uploading file:', err);
+      alert('Error uploading challenges. Please check the file format.');
+    } finally {
+      setUploading(false);
+      e.target.value = ''; // Reset file input
+    }
+  };
+
+  const downloadTemplate = () => {
+  const templateData = [
+    ['title', 'description', 'category', 'difficulty', 'tokenCost', 'content'],
+    ['Challenge 1', 'Description', 'Web', 'Easy', '10', 'Detailed content here...'],
+    ['Challenge 2', 'Description', 'Crypto', 'Medium', '20', 'Detailed content here...']
+  ];
+  
+  const ws = XLSX.utils.aoa_to_sheet(templateData);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Template");
+  XLSX.writeFile(wb, "challenges_template.xlsx");
+};
 
   const handleOpenModal = (challenge = null) => {
     if (challenge) {
@@ -125,14 +175,34 @@ export const AdminChallenges = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Manage Challenges</h1>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="h-5 w-5 mr-1" />
-          Add Challenge
-        </button>
-      </div>
+        <div className="flex space-x-2">
+           <button 
+    onClick={downloadTemplate}
+    className="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+  >
+    <Download className="h-5 w-5 mr-1" />
+    Download Template
+  </button>
+          <label className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer">
+            <Upload className="h-5 w-5 mr-1" />
+            Upload Excel
+            <input 
+              type="file" 
+              className="hidden" 
+              accept=".xlsx,.xls,.csv"
+              onChange={handleFileUpload}
+              disabled={uploading}
+            />
+          </label>
+          <button
+            onClick={() => handleOpenModal()}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-5 w-5 mr-1" />
+            Add Challenge
+          </button>
+          </div>
+          </div>
 
       {/* Search */}
       <div className="mb-6">
