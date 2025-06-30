@@ -2,6 +2,7 @@ import Challenge from '../models/Challenge.js';
 import Category from '../models/Category.js';
 import User from '../models/User.js';
 import Cart from '../models/Cart.js';
+import PurchasedChallenge from '../models/purchasedChallenge.js'; 
 
 // @desc    Create new challenge
 // @route   POST /api/challenges
@@ -72,50 +73,7 @@ export const getChallengesByCategory = async (req, res, next) => {
   }
 };
 
-// @desc    Get single challenge
-// @route   GET /api/challenges/:id
-// @access  Public
-// export const getChallengeById = async (req, res, next) => {
-//   try {
-//     const challenge = await Challenge.findById(req.params.id).populate('category');
-    
-//     if (!challenge) {
-//       return res.status(404).json({
-//         success: false,
-//         error: 'Challenge not found'
-//       });
-//     }
-    
-//     res.status(200).json({
-//       success: true,
-//       data: challenge
-//     });
-//   } catch (err) {
-//     next(err);
-//   }
-// };
-// export const getChallengeDetails = async (req, res, next) => {
-//   try {
-//     const challenge = await Challenge.findById(req.params.id).populate('category');
-    
-//     if (!challenge) {
-//       return res.status(404).json({
-//         success: false,
-//         error: 'Challenge not found',
-//       });
-//     }
 
-//     // Exclude `content` field
-//     const { content, ...challengeDetails } = challenge.toObject();
-
-//     res.status(200).json({
-//       success: true,
-//       data: challengeDetails,
-//     });
-//   } catch (err) {
-//     next(err);
-//   }
-// };
 
 
 export const getChallengeDetails = async (req, res, next) => {
@@ -139,39 +97,7 @@ export const getChallengeDetails = async (req, res, next) => {
 };
 
 
-// @desc    Update challenge
-// @route   PUT /api/challenges/:id
-// @access  Private/Admin
 
-export const getChallengeContent = async (req, res, next) => {
-  try {
-    const challenge = await Challenge.findById(req.params.id);
-
-    if (!challenge) {
-      return res.status(404).json({
-        success: false,
-        error: 'Challenge not found',
-      });
-    }
-
-    const user = await User.findById(req.user.id);
-
-    // Allow access if user is admin or has purchased the challenge
-    if (user.role !== 'admin' && !user.purchasedChallenges.includes(challenge._id)) {
-      return res.status(403).json({
-        success: false,
-        error: 'You have not purchased this challenge',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: { content: challenge.content },
-    });
-  } catch (err) {
-    next(err);
-  }
-};
 
 export const updateChallenge = async (req, res, next) => {
   try {
@@ -225,7 +151,62 @@ export const deleteChallenge = async (req, res, next) => {
 };
 
 
-import Transaction from '../models/Transaction.js';
+
+// export const purchaseChallenge = async (req, res, next) => {
+//   try {
+//     const challenge = await Challenge.findById(req.params.id);
+    
+//     if (!challenge) {
+//       return res.status(404).json({
+//         success: false,
+//         error: 'Challenge not found'
+//       });
+//     }
+    
+//     const user = await User.findById(req.user.id);
+    
+//     // Check if user already purchased this challenge
+//     if (user.purchasedChallenges.includes(challenge._id)) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'You have already purchased this challenge'
+//       });
+//     }
+    
+//     // Check if user has enough tokens
+//     if (user.tokens < challenge.tokenCost) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'You do not have enough tokens to purchase this challenge'
+//       });
+//     }
+    
+//     // Deduct tokens and add challenge to purchased
+//     user.tokens -= challenge.tokenCost;
+//     user.purchasedChallenges.push(challenge._id);
+//     await user.save();
+
+//     // Remove the challenge from the cart
+//     const cart = await Cart.findOne({ user: req.user.id });
+//     if (cart) {
+//       cart.items = cart.items.filter(item => !item.challenge.equals(challenge._id));
+//       cart.totalTokens = cart.items.reduce((sum, item) => sum + item.challenge.tokenCost, 0);
+//       cart.updatedAt = new Date();
+//       await cart.save();
+//     }
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         challenge,
+//         tokensRemaining: user.tokens,
+//       }
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+
 
 export const purchaseChallenge = async (req, res, next) => {
   try {
@@ -240,8 +221,13 @@ export const purchaseChallenge = async (req, res, next) => {
     
     const user = await User.findById(req.user.id);
     
-    // Check if user already purchased this challenge
-    if (user.purchasedChallenges.includes(challenge._id)) {
+    // Check if user already purchased this challenge (now using PurchasedChallenge model)
+    const existingPurchase = await PurchasedChallenge.findOne({
+      user: user._id,
+      challenge: challenge._id
+    });
+    
+    if (existingPurchase) {
       return res.status(400).json({
         success: false,
         error: 'You have already purchased this challenge'
@@ -256,10 +242,15 @@ export const purchaseChallenge = async (req, res, next) => {
       });
     }
     
-    // Deduct tokens and add challenge to purchased
+    // Deduct tokens
     user.tokens -= challenge.tokenCost;
-    user.purchasedChallenges.push(challenge._id);
     await user.save();
+
+    // Create new purchase record
+    await PurchasedChallenge.create({
+      user: user._id,
+      challenge: challenge._id
+    });
 
     // Remove the challenge from the cart
     const cart = await Cart.findOne({ user: req.user.id });
@@ -269,6 +260,7 @@ export const purchaseChallenge = async (req, res, next) => {
       cart.updatedAt = new Date();
       await cart.save();
     }
+    
     res.status(200).json({
       success: true,
       data: {

@@ -1,5 +1,5 @@
 import User from '../models/User.js';
-
+import PurchasedChallenge from '../models/purchasedChallenge.js'; 
 // @desc    Get all users
 // @route   GET /api/users
 // @access  Private/Admin
@@ -140,36 +140,75 @@ export const assignTokens = async (req, res, next) => {
 // @desc    Get user purchased challenges
 // @route   GET /api/users/purchased-challenges
 // @access  Private
+// export const getPurchasedChallenges = async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.user.id).populate('purchasedChallenges');
+    
+//     res.status(200).json({
+//       success: true,
+//       data: user.purchasedChallenges
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+// export const getUserPurchasedChallenges= async (req, res, next) => {
+//   try {
+//     const user = await User.findById(req.params.userId).populate('purchasedChallenges');
+    
+//     if (!user) {
+//       return res.status(404).json({
+//         success: false,
+//         error: 'User not found'
+//       });
+//     }
+    
+//     res.status(200).json({
+//       success: true,
+//       data: user.purchasedChallenges
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+
+
 export const getPurchasedChallenges = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id).populate('purchasedChallenges');
+    const purchasedChallenges = await PurchasedChallenge.find({ user: req.user.id })
+      .populate('challenge');
     
     res.status(200).json({
       success: true,
-      data: user.purchasedChallenges
+      data: purchasedChallenges.map(pc => pc.challenge)
     });
   } catch (err) {
     next(err);
   }
 };
 
-export const getUserPurchasedChallenges= async (req, res, next) => {
+export const getUserPurchasedChallenges = async (req, res, next) => {
   try {
-    const user = await User.findById(req.params.userId).populate('purchasedChallenges');
+    const purchasedChallenges = await PurchasedChallenge.find({ user: req.params.userId })
+      .populate('challenge');
     
-    if (!user) {
+    if (!purchasedChallenges) {
       return res.status(404).json({
         success: false,
-        error: 'User not found'
+        error: 'No purchased challenges found for this user'
       });
     }
     
     res.status(200).json({
       success: true,
-      data: user.purchasedChallenges
+      data: purchasedChallenges.map(pc => pc.challenge)
     });
   } catch (err) {
     next(err);
   }
 };
+
+
 

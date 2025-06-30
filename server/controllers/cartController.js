@@ -1,10 +1,79 @@
 import Cart from '../models/Cart.js';
 import Challenge from '../models/Challenge.js';
 import User from '../models/User.js';
+import PurchasedChallenge from '../models/purchasedChallenge.js'; 
 
 // @desc    Add challenge to cart
 // @route   POST /api/cart/add/:challengeId
 // @access  Private
+// export const addToCart = async (req, res, next) => {
+//   try {
+//     const challengeId = req.params.challengeId;
+//     const userId = req.user.id;
+    
+//     // Check if challenge exists
+//     const challenge = await Challenge.findById(challengeId);
+//     if (!challenge) {
+//       return res.status(404).json({
+//         success: false,
+//         error: 'Challenge not found'
+//       });
+//     }
+    
+//     // Check if user already purchased this challenge
+//     const user = await User.findById(userId);
+//     if (user.purchasedChallenges.includes(challengeId)) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'You have already purchased this challenge'
+//       });
+//     }
+    
+//     // Find or create cart
+//     let cart = await Cart.findOne({ user: userId });
+    
+//     if (!cart) {
+//       cart = await Cart.create({
+//         user: userId,
+//         items: [{ challenge: challengeId }],
+//         totalTokens: challenge.tokenCost
+//       });
+//     } else {
+//       // Check if challenge already in cart
+//       const itemExists = cart.items.find(
+//         item => item.challenge.toString() === challengeId
+//       );
+      
+//       if (itemExists) {
+//         return res.status(400).json({
+//           success: false,
+//           error: 'Challenge already in cart'
+//         });
+//       }
+      
+//       // Add to cart
+//       cart.items.push({ challenge: challengeId });
+//       cart.totalTokens += challenge.tokenCost;
+//       cart.updatedAt = Date.now();
+//       await cart.save();
+//     }
+    
+//     // Populate challenge details
+//     const populatedCart = await Cart.findById(cart._id).populate({
+//       path: 'items.challenge',
+//       select: 'title description tokenCost difficulty'
+//     });
+    
+//     res.status(200).json({
+//       success: true,
+//       data: populatedCart
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+
 export const addToCart = async (req, res, next) => {
   try {
     const challengeId = req.params.challengeId;
@@ -19,9 +88,13 @@ export const addToCart = async (req, res, next) => {
       });
     }
     
-    // Check if user already purchased this challenge
-    const user = await User.findById(userId);
-    if (user.purchasedChallenges.includes(challengeId)) {
+    // Check if user already purchased this challenge (using new PurchasedChallenge model)
+    const alreadyPurchased = await PurchasedChallenge.findOne({
+      user: userId,
+      challenge: challengeId
+    });
+    
+    if (alreadyPurchased) {
       return res.status(400).json({
         success: false,
         error: 'You have already purchased this challenge'
@@ -60,7 +133,11 @@ export const addToCart = async (req, res, next) => {
     // Populate challenge details
     const populatedCart = await Cart.findById(cart._id).populate({
       path: 'items.challenge',
-      select: 'title description tokenCost difficulty'
+      select: 'title description tokenCost difficulty category',
+      populate: {
+        path: 'category',
+        select: 'name'
+      }
     });
     
     res.status(200).json({
@@ -179,12 +256,65 @@ export const clearCart = async (req, res, next) => {
 // @desc    Checkout cart
 // @route   POST /api/cart/checkout
 // @access  Private
+// export const checkout = async (req, res, next) => {
+//   try {
+//     const userId = req.user.id;
+    
+//     // Find cart
+//     const cart = await Cart.findOne({ user: userId });
+    
+//     if (!cart || cart.items.length === 0) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'Your cart is empty'
+//       });
+//     }
+    
+//     // Get user
+//     const user = await User.findById(userId);
+    
+//     // Check if user has enough tokens
+//     if (user.tokens < cart.totalTokens) {
+//       return res.status(400).json({
+//         success: false,
+//         error: 'You do not have enough tokens'
+//       });
+//     }
+    
+//     // Process purchase
+//     user.tokens -= cart.totalTokens;
+    
+//     // Add challenges to user's purchased list
+//     const challengeIds = cart.items.map(item => item.challenge);
+//     user.purchasedChallenges.push(...challengeIds);
+    
+//     await user.save();
+    
+//     // Clear cart
+//     cart.items = [];
+//     cart.totalTokens = 0;
+//     cart.updatedAt = Date.now();
+//     await cart.save();
+    
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         purchasedChallenges: challengeIds,
+//         tokensRemaining: user.tokens
+//       }
+//     });
+//   } catch (err) {
+//     next(err);
+//   }
+// };
+
+
 export const checkout = async (req, res, next) => {
   try {
     const userId = req.user.id;
     
     // Find cart
-    const cart = await Cart.findOne({ user: userId });
+    const cart = await Cart.findOne({ user: userId }).populate('items.challenge');
     
     if (!cart || cart.items.length === 0) {
       return res.status(400).json({
@@ -204,14 +334,33 @@ export const checkout = async (req, res, next) => {
       });
     }
     
+    // Check for already purchased challenges
+    const challengeIds = cart.items.map(item => item.challenge._id);
+    const existingPurchases = await PurchasedChallenge.find({
+      user: userId,
+      challenge: { $in: challengeIds }
+    });
+    
+    if (existingPurchases.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'You already own some challenges in your cart',
+        data: existingPurchases.map(p => p.challenge)
+      });
+    }
+    
     // Process purchase
     user.tokens -= cart.totalTokens;
-    
-    // Add challenges to user's purchased list
-    const challengeIds = cart.items.map(item => item.challenge);
-    user.purchasedChallenges.push(...challengeIds);
-    
     await user.save();
+    
+    // Create purchased challenge records
+    const purchasePromises = cart.items.map(item => 
+      PurchasedChallenge.create({
+        user: userId,
+        challenge: item.challenge._id
+      })
+    );
+    await Promise.all(purchasePromises);
     
     // Clear cart
     cart.items = [];

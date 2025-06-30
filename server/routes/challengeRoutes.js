@@ -3,7 +3,6 @@ import {
   createChallenge, 
   getAllChallenges, 
   getChallengeDetails,
-  getChallengeContent,
   updateChallenge, 
   deleteChallenge,
   purchaseChallenge,
@@ -24,7 +23,7 @@ router.get('/category/:categoryId', getChallengesByCategory);
 
 // Protected routes
 router.use(protect);
-router.get('/:id/content', getChallengeContent);
+// router.get('/:id/content', getChallengeContent);
 router.post('/:id/purchase', purchaseChallenge);
 
 
