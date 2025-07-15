@@ -361,3 +361,70 @@ export const purchaseChallenge = async (req, res, next) => {
     next(err);
   }
 };
+
+
+export const bulkPurchaseChallenges = async (req, res, next) => {
+  try {
+    const { challengeIds } = req.body;
+    
+    if (!challengeIds || !Array.isArray(challengeIds) ){
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid challenge IDs'
+      });
+    }
+
+    const user = await User.findById(req.user.id);
+    const challenges = await Challenge.find({ _id: { $in: challengeIds } });
+
+    // Check for already purchased challenges
+    const existingPurchases = await PurchasedChallenge.find({
+      user: user._id,
+      challenge: { $in: challengeIds }
+    });
+
+    if (existingPurchases.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'You already own some of these challenges',
+        purchasedChallenges: existingPurchases.map(p => p.challenge)
+      });
+    }
+
+    // Calculate total cost
+    const totalCost = challenges.reduce((sum, challenge) => sum + challenge.tokenCost, 0);
+
+    // Check token balance
+    if (user.tokens < totalCost) {
+      return res.status(400).json({
+        success: false,
+        error: 'Insufficient tokens',
+        requiredTokens: totalCost,
+        currentTokens: user.tokens
+      });
+    }
+
+    // Process purchase
+    user.tokens -= totalCost;
+    await user.save();
+
+    // Create purchase records
+    const purchasePromises = challengeIds.map(challengeId => 
+      PurchasedChallenge.create({
+        user: user._id,
+        challenge: challengeId
+      })
+    );
+    await Promise.all(purchasePromises);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        purchasedCount: challengeIds.length,
+        tokensRemaining: user.tokens
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+};

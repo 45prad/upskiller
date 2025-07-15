@@ -8,6 +8,7 @@ import {
   purchaseChallenge,
   getChallengesByCategory,
   getChallengesCount,
+  bulkPurchaseChallenges
 } from '../controllers/challengeController.js';
 
 import {getUserPurchasedChallenges} from '../controllers/userController.js';
@@ -25,6 +26,7 @@ router.get('/category/:categoryId', getChallengesByCategory);
 router.use(protect);
 // router.get('/:id/content', getChallengeContent);
 router.post('/:id/purchase', purchaseChallenge);
+router.post('/bulk-purchase', bulkPurchaseChallenges);
 
 
 // Admin only routes
