@@ -9,11 +9,12 @@ import {
   purchaseChallenge,
   getChallengesByCategory,
   getChallengesCount,
+  uploadChallengesFromExcel
 } from '../controllers/challengeController.js';
 
 import {getUserPurchasedChallenges} from '../controllers/userController.js';
 import { protect, authorize } from '../middleware/auth.js';
-
+import upload from '../middleware/upload.js';
 const router = express.Router();
 
 // Public routes
@@ -31,6 +32,7 @@ router.post('/:id/purchase', purchaseChallenge);
 // Admin only routes
 router.use(authorize('admin'));
 router.post('/', createChallenge);
+router.post('/upload', upload.single('excelFile'), uploadChallengesFromExcel);
 router.put('/:id', updateChallenge);
 router.delete('/:id', deleteChallenge);
 

@@ -1,5 +1,7 @@
 import Challenge from '../models/Challenge.js';
 import Category from '../models/Category.js';
+import xlsx from 'xlsx';
+import fs from 'fs';
 import User from '../models/User.js';
 import Cart from '../models/Cart.js';
 
@@ -18,6 +20,101 @@ export const createChallenge = async (req, res, next) => {
     });
   } catch (err) {
     next(err);
+  }
+};
+
+
+
+export const uploadChallengesFromExcel = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No file uploaded'
+      });
+    }
+
+    const workbook = xlsx.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = xlsx.utils.sheet_to_json(worksheet);
+    
+    const challengesToCreate = [];
+    const errors = [];
+    
+    for (const [index, row] of data.entries()) {
+      try {
+        // Validate required fields
+        if (!row.title || !row.description || !row.category || !row.content) {
+          throw new Error('Missing required fields');
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(row.category)) {
+          throw new Error('Invalid category ID');
+        }
+
+        const challengeData = {
+          title: row.title,
+          description: row.description,
+          category: row.category,
+          difficulty: ['Easy', 'Medium', 'Hard'].includes(row.difficulty) 
+            ? row.difficulty 
+            : 'Medium',
+          tokenCost: Number(row.tokenCost) || 0,
+          content: row.content
+        };
+        
+        challengesToCreate.push(challengeData);
+      } catch (error) {
+        errors.push({
+          row: index + 2,
+          error: error.message,
+          data: row
+        });
+      }
+    }
+    
+    if (errors.length > 0 && challengesToCreate.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'All rows failed validation',
+        errors
+      });
+    }
+    
+    // Insert challenges and update category counts
+    const createdChallenges = await Challenge.insertMany(challengesToCreate, { ordered: false });
+    
+    // Update challenge counts in categories
+    const categoryUpdates = {};
+    createdChallenges.forEach(challenge => {
+      categoryUpdates[challenge.category] = (categoryUpdates[challenge.category] || 0) + 1;
+    });
+
+    await Promise.all(
+      Object.entries(categoryUpdates).map(([categoryId, count]) => 
+        Category.findByIdAndUpdate(categoryId, { $inc: { challengeCount: count } })
+      )
+    );
+    
+    res.status(201).json({
+      success: true,
+      data: createdChallenges,
+      errors: errors.length > 0 ? errors : undefined,
+      message: `Successfully created ${createdChallenges.length} challenges, ${errors.length} failed`
+    });
+    
+  } catch (err) {
+    next(err);
+  } finally {
+    // Clean up the uploaded file
+    if (req.file) {
+      try {
+        await fs.unlink(req.file.path);
+      } catch (err) {
+        console.error('Error deleting uploaded file:', err);
+      }
+    }
   }
 };
 

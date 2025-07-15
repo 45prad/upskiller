@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { Upload } from 'lucide-react';
 import { Plus, Edit, Trash2, Search } from 'lucide-react';
 
 export const AdminCategories = () => {
@@ -65,6 +66,43 @@ export const AdminCategories = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
+  const handleExcelUpload = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  try {
+    setLoading(true);
+    const formData = new FormData();
+    formData.append('excelFile', file);
+
+    const res = await axios.post(
+      `${import.meta.env.VITE_API_URL}/categories/upload`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    );
+
+    // Reset file input
+    e.target.value = '';
+
+    if (res.data.success) {
+      alert(`Successfully uploaded ${res.data.data.length} categories`);
+      } else {
+        alert('Upload completed with some errors');
+      }
+
+    fetchCategories();
+  } catch (err) {
+    console.error('Error uploading Excel file:', err);
+    alert('Error uploading file. Please check the format and try again.');
+  } finally {
+    setLoading(false);
+  }
+};
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -105,13 +143,25 @@ export const AdminCategories = () => {
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Manage Categories</h1>
-        <button
-          onClick={() => handleOpenModal()}
-          className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
-        >
-          <Plus className="h-5 w-5 mr-1" />
-          Add Category
-        </button>
+        <div className="flex gap-3"> {/* Added flex container with gap */}
+          <label className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 cursor-pointer">
+            <Upload className="h-5 w-5 mr-1" />
+            Upload Excel
+            <input
+              type="file"
+              className="hidden"
+              accept=".xlsx, .xls"
+              onChange={handleExcelUpload}
+            />
+          </label>
+          <button
+            onClick={() => handleOpenModal()}
+            className="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700"
+          >
+            <Plus className="h-5 w-5 mr-1" />
+            Add Category
+          </button>
+        </div>
       </div>
 
       {/* Search */}
